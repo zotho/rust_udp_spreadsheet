@@ -1,5 +1,5 @@
-use mysql::*;
 use mysql::prelude::*;
+use mysql::*;
 
 type MySqlResult<T> = std::result::Result<T, mysql::Error>;
 
@@ -12,7 +12,10 @@ pub struct Row {
 
 impl Into<Vec<String>> for &Row {
     fn into(self) -> Vec<String> {
-        vec![self.number.to_string(), self.text.to_owned().unwrap_or_default()]
+        vec![
+            self.number.to_string(),
+            self.text.to_owned().unwrap_or_default(),
+        ]
     }
 }
 
@@ -25,7 +28,10 @@ impl Database {
     pub fn new(url: String) -> MySqlResult<Self> {
         let pool = Pool::new(url.clone())?;
         pool.get_conn()?;
-        Ok(Database {url: url, pool: pool})
+        Ok(Database {
+            url: url,
+            pool: pool,
+        })
     }
 
     pub fn url(&self) -> String {
@@ -50,8 +56,9 @@ impl Database {
                 id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
                 number INTEGER,
                 text TEXT
-            )")?;
-        
+            )",
+        )?;
+
         connection.query_drop(r"FLUSH TABLES")?;
 
         Ok(())
@@ -66,10 +73,12 @@ impl Database {
     pub fn get_rows(&self) -> MySqlResult<Vec<Row>> {
         let mut connection = self.pool.get_conn().unwrap();
 
-        Ok(connection.query_map(
-            r"SELECT id, number, text FROM simple_table",
-            |(id, number, text)| Row {id, number, text}
-        ).unwrap())
+        Ok(connection
+            .query_map(
+                r"SELECT id, number, text FROM simple_table",
+                |(id, number, text)| Row { id, number, text },
+            )
+            .unwrap())
     }
 
     pub fn insert_rows(&self, rows: Vec<Row>) -> MySqlResult<()> {
@@ -78,10 +87,12 @@ impl Database {
         connection.exec_batch(
             r"INSERT INTO simple_table (number, text)
             VALUES (:number, :text)",
-            rows.iter().map(|row| params! {
-                "number" => row.number,
-                "text" => &row.text,
-            })
+            rows.iter().map(|row| {
+                params! {
+                    "number" => row.number,
+                    "text" => &row.text,
+                }
+            }),
         )
     }
 
@@ -94,7 +105,7 @@ impl Database {
             params! {
                 "number" => row.number,
                 "text" => &row.text,
-            }
+            },
         )
     }
 
@@ -106,7 +117,7 @@ impl Database {
             params! {
                 "number" => new_value,
                 "row" => row,
-            }
+            },
         )
     }
 
@@ -118,7 +129,7 @@ impl Database {
             params! {
                 "text" => new_value,
                 "row" => row,
-            }
+            },
         )
     }
 }
@@ -127,16 +138,29 @@ pub fn populate_table(db: &Database) {
     db.create_table().unwrap();
 
     db.insert_rows(vec![
-        Row { id: 0, number: 1, text: Some("test".to_owned()) },
-        Row { id: 0, number: 100, text: Some("another text".to_owned()) },
-        Row { id: 0, number: -3234, text: None },
-    ]).unwrap();
+        Row {
+            id: 0,
+            number: 1,
+            text: Some("test".to_owned()),
+        },
+        Row {
+            id: 0,
+            number: 100,
+            text: Some("another text".to_owned()),
+        },
+        Row {
+            id: 0,
+            number: -3234,
+            text: None,
+        },
+    ])
+    .unwrap();
 }
 
 #[cfg(test)]
 mod tests {
-    use std::sync::Once;
     use crate::database::{Database, Row};
+    use std::sync::Once;
 
     static INIT: Once = Once::new();
     static mut DATABASE: Option<Database> = None;
@@ -144,7 +168,9 @@ mod tests {
     fn get_cached_database() -> &'static Database {
         unsafe {
             INIT.call_once(|| {
-                DATABASE = Some(Database::new("mysql://zotho:zotho@localhost:3306/rust".to_owned()).unwrap());
+                DATABASE = Some(
+                    Database::new("mysql://zotho:zotho@localhost:3306/rust".to_owned()).unwrap(),
+                );
             });
             DATABASE.as_ref().unwrap()
         }
@@ -156,9 +182,21 @@ mod tests {
         db.create_table().unwrap();
 
         let test_rows = vec![
-            Row { id: 1, number: 1, text: Some("test".to_owned()) },
-            Row { id: 2, number: 100, text: Some("another text".to_owned()) },
-            Row { id: 3, number: -3234, text: None },
+            Row {
+                id: 1,
+                number: 1,
+                text: Some("test".to_owned()),
+            },
+            Row {
+                id: 2,
+                number: 100,
+                text: Some("another text".to_owned()),
+            },
+            Row {
+                id: 3,
+                number: -3234,
+                text: None,
+            },
         ];
         db.insert_rows(test_rows.clone()).unwrap();
 
@@ -174,9 +212,21 @@ mod tests {
         db.create_table().unwrap();
 
         let mut test_rows = vec![
-            Row { id: 1, number: 1, text: Some("test".to_owned()) },
-            Row { id: 2, number: 100, text: Some("another text".to_owned()) },
-            Row { id: 3, number: -3234, text: None },
+            Row {
+                id: 1,
+                number: 1,
+                text: Some("test".to_owned()),
+            },
+            Row {
+                id: 2,
+                number: 100,
+                text: Some("another text".to_owned()),
+            },
+            Row {
+                id: 3,
+                number: -3234,
+                text: None,
+            },
         ];
         db.insert_rows(test_rows.clone()).unwrap();
 

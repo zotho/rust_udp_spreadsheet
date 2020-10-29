@@ -3,38 +3,24 @@ use std::rc::Rc;
 
 use lazy_static::lazy_static;
 
-use fltk::{
-    Event,
-    Font,
-    Key,
-    GroupExt,
-    InputExt,
-    TableExt,
-    WidgetExt,
-    WindowExt,
-};
 use fltk::app;
-use fltk::app::{App, Scheme, channel, Sender, Receiver};
+use fltk::app::{channel, App, Receiver, Scheme, Sender};
 use fltk::button::{Button, RadioRoundButton};
-use fltk::Cursor;
-use fltk::draw;
 use fltk::dialog::alert;
+use fltk::draw;
 use fltk::input::Input;
-use fltk::table::TableContext::{
-    StartPage,
-    ColHeader,
-    RowHeader,
-    Cell,
-};
+use fltk::table::TableContext::{Cell, ColHeader, RowHeader, StartPage};
+use fltk::Cursor;
+use fltk::{Event, Font, GroupExt, InputExt, Key, TableExt, WidgetExt, WindowExt};
 
 mod cell_data;
 use cell_data::CellData;
 
 mod draw_table;
-use draw_table::{draw_header, draw_data};
+use draw_table::{draw_data, draw_header};
 
 mod widgets;
-use widgets::{make_window, make_table, make_input, InputType, VisibleFlag};
+use widgets::{make_input, make_table, make_window, InputType, VisibleFlag};
 
 mod database;
 use database::{populate_table, Database, Row};
@@ -65,7 +51,9 @@ fn get_alpha_upper_char(char_index: i32) -> char {
 fn main() -> Result<(), Error> {
     let connector = Rc::from(RefCell::from(make_connector()?));
 
-    let db = Rc::from(RefCell::from(Database::new("mysql://zotho:zotho@localhost:3306/rust".to_owned())?));
+    let db = Rc::from(RefCell::from(Database::new(
+        "mysql://zotho:zotho@localhost:3306/rust".to_owned(),
+    )?));
 
     // If we need populate table
     if let Some(populate_flag) = std::env::args().nth(1) {
@@ -74,8 +62,13 @@ fn main() -> Result<(), Error> {
         }
     }
 
-    let raw_data: Vec<Vec<String>> = db.borrow().get_rows().unwrap().iter()
-        .map(|row| row.into()).collect();
+    let raw_data: Vec<Vec<String>> = db
+        .borrow()
+        .get_rows()
+        .unwrap()
+        .iter()
+        .map(|row| row.into())
+        .collect();
     let n_rows = raw_data.len();
     let n_cols = raw_data.first().unwrap_or(&Vec::new()).len();
 
@@ -84,7 +77,7 @@ fn main() -> Result<(), Error> {
 
     let sender = CHANNEL.0;
     let receiver = CHANNEL.1;
-    
+
     let fltk_app = App::default().with_scheme(Scheme::Gtk);
 
     let mut window = make_window(100, 100, 410, 640, "Spreadsheet");
@@ -112,7 +105,8 @@ fn main() -> Result<(), Error> {
                             println!("ROWS {:?}", rows);
                             let mut data = data_clone.borrow_mut();
                             data.clear();
-                            let raw_data: Vec<Vec<String>> = rows.iter().map(|row| row.into()).collect();
+                            let raw_data: Vec<Vec<String>> =
+                                rows.iter().map(|row| row.into()).collect();
                             data.extend(raw_data);
                             sender.send(Message::UpdateTable);
                         }
@@ -122,12 +116,11 @@ fn main() -> Result<(), Error> {
                             alert(0, 0, &error.to_string())
                         }
                     }
-                    
                 }
             }
             false
         }
-        _ => false
+        _ => false,
     }));
 
     make_input(
@@ -160,7 +153,7 @@ fn main() -> Result<(), Error> {
     rb_recieve.set_callback(Box::new(move || sender.send(Message::SetRecieve)));
 
     let (mut table, input) = make_table(5, 205, 400, 400, "Data", n_rows, n_cols);
-    let input_visible = Rc::from(RefCell::from(VisibleFlag {visible: false}));
+    let input_visible = Rc::from(RefCell::from(VisibleFlag { visible: false }));
 
     let mut button = Button::new(5, 610, 400, 25, "Add row");
     button.set_callback(Box::new(move || sender.send(Message::AddRow)));
@@ -182,9 +175,7 @@ fn main() -> Result<(), Error> {
         Cell => {
             let selected = table_clone.is_selected(row, col);
             if selected {
-                cell_clone
-                    .borrow_mut()
-                    .select(row, col, x, y, w, h); // Captures the cell information
+                cell_clone.borrow_mut().select(row, col, x, y, w, h); // Captures the cell information
                 if input_visible_clone.borrow().visible {
                     return; // Don't redraw cell if input is visible
                 }
@@ -195,7 +186,6 @@ fn main() -> Result<(), Error> {
         }
         _ => (),
     }));
-
 
     let connector_clone = connector.clone();
     let db_clone = db.clone();
@@ -234,21 +224,19 @@ fn main() -> Result<(), Error> {
 
                     let db_row = row + 1;
                     let result: Result<(), Error> = match col {
-                        0 => {
-                            match value.parse() {
-                                Ok(parsed_value) => {
-                                    db.update_number(db_row, parsed_value)
-                                        .map_err(|err| err.into())
-                                }
-                                Err(error) => {
-                                    alert(0, 0, format!("Can't parse \"{}\" as int", value).as_str());
-                                    Err(error.into())
-                                }
-                            }
-                        }
-                        1 => db.update_text(db_row, if value.len() > 0 {Some(value)} else {None})
+                        0 => match value.parse() {
+                            Ok(parsed_value) => db
+                                .update_number(db_row, parsed_value)
                                 .map_err(|err| err.into()),
-                        _ => unreachable!()
+                            Err(error) => {
+                                alert(0, 0, format!("Can't parse \"{}\" as int", value).as_str());
+                                Err(error.into())
+                            }
+                        },
+                        1 => db
+                            .update_text(db_row, if value.len() > 0 { Some(value) } else { None })
+                            .map_err(|err| err.into()),
+                        _ => unreachable!(),
                     };
 
                     if result.is_ok() {
@@ -301,10 +289,10 @@ fn main() -> Result<(), Error> {
                                 data.extend(incoming_data);
                                 table.set_rows(data.len() as u32);
                                 println!("Receive {:?}", data);
-                            },
+                            }
                             Err(error) => {
                                 println!("Receive error: {}", error.details);
-                            },
+                            }
                         }
                     }
                 } else {
@@ -330,7 +318,7 @@ fn main() -> Result<(), Error> {
             Some(Message::UpdateTable) => {
                 table.set_rows(data.borrow().len() as u32);
             }
-            None => ()
+            None => (),
         }
     }
 

@@ -1,32 +1,17 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use fltk::{
-    Event,
-    Key,
-    GroupExt,
-    InputExt,
-    TableExt,
-    WidgetExt,
-    WindowExt,
-};
 use fltk::app;
 use fltk::dialog::alert;
 use fltk::input::Input;
 use fltk::table::Table;
 use fltk::window::DoubleWindow;
+use fltk::{Event, GroupExt, InputExt, Key, TableExt, WidgetExt, WindowExt};
 
 use crate::connector::{Connector, MyConnectorResult};
 
-pub fn make_window(
-    x: i32,
-    y: i32,
-    w: i32,
-    h: i32,
-    title: &str,
-) -> DoubleWindow {
-    let mut window = DoubleWindow::new(x, y, w, h, title)
-        .center_screen();
+pub fn make_window(x: i32, y: i32, w: i32, h: i32, title: &str) -> DoubleWindow {
+    let mut window = DoubleWindow::new(x, y, w, h, title).center_screen();
     window.set_callback(Box::new(|| {
         let event = app::event();
         let close = event == Event::Close;
@@ -40,7 +25,7 @@ pub fn make_window(
 }
 
 pub struct VisibleFlag {
-    pub visible: bool
+    pub visible: bool,
 }
 
 pub fn make_table(
@@ -94,15 +79,20 @@ pub fn make_input(
         let connector = connector.borrow();
         match input_type {
             InputType::BindAddress => connector.bind_addr(),
-            InputType::ConnectAddress => connector.connect_addr()
-        }.to_owned()
+            InputType::ConnectAddress => connector.connect_addr(),
+        }
+        .to_owned()
     }
-    
-    fn set_addr(connector: &Rc<RefCell<Connector>>, input_type: InputType, value: &str) -> MyConnectorResult<()> {
+
+    fn set_addr(
+        connector: &Rc<RefCell<Connector>>,
+        input_type: InputType,
+        value: &str,
+    ) -> MyConnectorResult<()> {
         let mut connector = connector.borrow_mut();
         match input_type {
             InputType::BindAddress => connector.set_bind_addr(value),
-            InputType::ConnectAddress => connector.set_connect_addr(value)
+            InputType::ConnectAddress => connector.set_connect_addr(value),
         }
     }
 
@@ -126,8 +116,7 @@ pub fn make_input(
             }
             false
         }
-        _ => false
+        _ => false,
     }));
     input
 }
-

@@ -1,7 +1,7 @@
 use std::net::UdpSocket;
 use std::time::Duration;
 
-use mysql::serde_json::{to_vec, from_slice};
+use mysql::serde_json::{from_slice, to_vec};
 
 use crate::error::Error;
 
@@ -22,7 +22,7 @@ impl Connector {
         Ok(Connector {
             bind_addr: bind_addr.to_owned(),
             connect_addr: connect_addr.to_owned(),
-            socket
+            socket,
         })
     }
 
@@ -35,12 +35,11 @@ impl Connector {
     }
 
     pub fn set_bind_addr(&mut self, bind_addr: &str) -> MyConnectorResult<()> {
-        Connector::new(bind_addr, self.connect_addr.as_str())
-            .map(|new_socket| {
-                self.socket = new_socket.socket;
-                self.bind_addr = new_socket.bind_addr;
-                self.connect_addr = new_socket.connect_addr;
-            })
+        Connector::new(bind_addr, self.connect_addr.as_str()).map(|new_socket| {
+            self.socket = new_socket.socket;
+            self.bind_addr = new_socket.bind_addr;
+            self.connect_addr = new_socket.connect_addr;
+        })
     }
 
     pub fn set_connect_addr(&mut self, connect_addr: &str) -> MyConnectorResult<()> {
@@ -58,11 +57,11 @@ impl Connector {
                 println!("Receive {} bytes from {:?}", n, addr);
 
                 let recieved_bytes = &mut recv_buff[..n];
-                
+
                 let deserialized: Vec<Vec<String>> = from_slice(&recieved_bytes).unwrap();
                 Ok(deserialized)
             }
-            Err(error) => return Err(error.into())
+            Err(error) => return Err(error.into()),
         }
     }
 
@@ -72,11 +71,10 @@ impl Connector {
             Ok(n_bytes) => {
                 if n_bytes != call.len() {
                     Err(Error::new("Sent the wrong number of bytes"))
-                }
-                else {
+                } else {
                     Ok(n_bytes)
                 }
-            },
+            }
             Err(error) => return Err(error.into()),
         }
     }

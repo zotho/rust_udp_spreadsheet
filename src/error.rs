@@ -1,16 +1,18 @@
-use std::num::ParseIntError;
 use std::io::Error as IoError;
+use std::num::ParseIntError;
 
 use mysql;
 
 #[derive(Debug)]
 pub struct Error {
-    pub details: String
+    pub details: String,
 }
 
 impl Error {
     pub fn new(msg: &str) -> Error {
-        Error{details: msg.to_string()}
+        Error {
+            details: msg.to_string(),
+        }
     }
 }
 
