@@ -78,8 +78,7 @@ impl Database {
             .query_map(
                 r"SELECT id, number, text FROM simple_table",
                 |(id, number, text)| Row { id, number, text },
-            )
-            .unwrap())
+            )?)
     }
 
     pub fn insert_rows(&self, rows: Vec<Row>) -> MySqlResult<()> {

@@ -706,6 +706,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "rust_udp_spreadsheet"
+version = "0.1.0"
+dependencies = [
+ "fltk",
+ "lazy_static",
+ "mysql",
+]
+
+[[package]]
 name = "rustc_version"
 version = "0.2.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -812,15 +821,6 @@ dependencies = [
  "digest",
  "fake-simd",
  "opaque-debug",
-]
-
-[[package]]
-name = "simple_table"
-version = "0.1.0"
-dependencies = [
- "fltk",
- "lazy_static",
- "mysql",
 ]
 
 [[package]]

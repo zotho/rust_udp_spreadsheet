@@ -1,5 +1,5 @@
 [package]
-name = "simple_table"
+name = "rust_udp_spreadsheet"
 version = "0.1.0"
 authors = ["Zotho <svjatoslavalekseef2@gmail.com>"]
 edition = "2018"
