@@ -19,15 +19,19 @@ cargo run -- --populate
 
 ## GUI Usage example
 In first instance:
+```
 DB: mysql://zotho:zotho@localhost:3306/rust
 Bind socket: 127.0.0.1:10001
 Connect socket: 127.0.0.1:10000
 [*] Send
+```
 
 In second instance:
+```
 Bind socket: 127.0.0.1:10000
 Connect socket: 127.0.0.1:10001
 [*] Recieve
+```
 
 ### Table
 Start editing: double click or Enter
