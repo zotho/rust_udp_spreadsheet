@@ -7,6 +7,7 @@ mod widgets;
 use std::cell::RefCell;
 use std::rc::Rc;
 
+use clap::{App as ClapApp, Arg};
 use fltk::app;
 use fltk::app::{channel, App, Receiver, Scheme, Sender};
 use fltk::button::{Button, RadioRoundButton};
@@ -20,7 +21,7 @@ use lazy_static::lazy_static;
 
 use connector::make_connector;
 use database::{populate_table, Database, Row};
-use draw_table::{draw_data, draw_header, CellData};
+use draw_table::{draw_data, draw_header, get_alpha_upper_char, CellData};
 use error::Error;
 use widgets::{make_input, make_table, make_window, InputType, VisibleFlag};
 
@@ -37,22 +38,34 @@ lazy_static! {
     static ref CHANNEL: (Sender<Message>, Receiver<Message>) = channel::<Message>();
 }
 
-fn get_alpha_upper_char(char_index: i32) -> char {
-    (char_index + 65) as u8 as char
-}
-
 fn main() -> Result<(), Error> {
+    let matches = ClapApp::new("Rust UDP spreadsheet")
+        .arg(
+            Arg::with_name("db")
+                .required(false)
+                .long("db")
+                .takes_value(true)
+                .help("Custom database URL"),
+        )
+        .arg(
+            Arg::with_name("populate")
+                .required(false)
+                .long("populate")
+                .takes_value(false)
+                .help("Populate table with example data"),
+        )
+        .get_matches();
+
     let connector = Rc::from(RefCell::from(make_connector()?));
 
-    let db = Rc::from(RefCell::from(Database::new(
-        "mysql://zotho:zotho@localhost:3306/rust".to_owned(),
-    )?));
+    let db_url = matches
+        .value_of("db")
+        .unwrap_or("mysql://zotho:zotho@localhost:3306/rust");
 
-    // If we need populate table
-    if let Some(populate_flag) = std::env::args().nth(1) {
-        if populate_flag == "--populate" {
-            populate_table(&db.borrow());
-        }
+    let db = Rc::from(RefCell::from(Database::new(db_url.to_owned())?));
+
+    if matches.is_present("populate") {
+        populate_table(&db.borrow());
     }
 
     let raw_data: Vec<Vec<String>> = db

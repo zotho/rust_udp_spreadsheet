@@ -74,11 +74,10 @@ impl Database {
     pub fn get_rows(&self) -> MySqlResult<Vec<Row>> {
         let mut connection = self.pool.get_conn().unwrap();
 
-        Ok(connection
-            .query_map(
-                r"SELECT id, number, text FROM simple_table",
-                |(id, number, text)| Row { id, number, text },
-            )?)
+        Ok(connection.query_map(
+            r"SELECT id, number, text FROM simple_table",
+            |(id, number, text)| Row { id, number, text },
+        )?)
     }
 
     pub fn insert_rows(&self, rows: Vec<Row>) -> MySqlResult<()> {
