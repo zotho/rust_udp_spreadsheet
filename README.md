@@ -34,8 +34,8 @@ Connect socket: 127.0.0.1:10001
 ```
 
 ### Table
-Start editing: double click or Enter
-Save cell: Enter
+- Start editing: double click or Enter
+- Save cell: Enter
 
 Columns:
 - number (INTEGER)
