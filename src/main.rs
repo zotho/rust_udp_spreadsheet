@@ -19,7 +19,6 @@ use fltk::button::RadioRoundButton;
 use fltk::Cursor;
 use fltk::draw;
 use fltk::dialog::alert;
-use fltk::input::Input;
 use fltk::table::TableContext::{
     StartPage,
     ColHeader,
@@ -34,7 +33,7 @@ mod draw_table;
 use draw_table::{draw_header, draw_data};
 
 mod widgets;
-use widgets::{make_window, make_table};
+use widgets::{make_window, make_table, make_input, InputType};
 
 mod database;
 use database::{populate_table, Database};
@@ -43,7 +42,7 @@ mod error;
 use error::Error;
 
 mod connector;
-use connector::SocketClient;
+use connector::make_connector;
 
 #[derive(Debug, Copy, Clone)]
 pub enum Message {
@@ -61,22 +60,7 @@ fn get_alpha_upper_char(char_index: i32) -> char {
 
 
 fn main() -> Result<(), Error> {
-    let mut bind_port = 10001;
-    
-    let dest_socket = "127.0.0.1:10000";
-
-    // Try to bind free port
-    let mut raw_connector = Err(Error::new("Not initialized"));
-    while bind_port < 10010 {
-        raw_connector = SocketClient::new(format!("127.0.0.1:{}", bind_port).as_str(), dest_socket);
-        if raw_connector.is_err() {
-            bind_port += 1;
-        } else {
-            break;
-        }
-    }
-    let connector = Rc::from(RefCell::from(raw_connector.unwrap()));
-
+    let connector = Rc::from(RefCell::from(make_connector()?));
 
     let db = Database::new("mysql://zotho:zotho@localhost:3306/rust".to_owned()).unwrap();
 
@@ -99,53 +83,29 @@ fn main() -> Result<(), Error> {
 
     let mut window = make_window();
 
-    let mut bind_socket_input = Input::new(120, 5, 200, 30, "Bind socket:");
-    bind_socket_input.set_value(connector.borrow().bind_addr());
-    let connector_clone = connector.clone();
-    let bind_socket_input_clone = bind_socket_input.clone();
-    bind_socket_input.handle(Box::new(move |event| match event {
-        Event::Unfocus => {
-            let value = bind_socket_input_clone.value();
-            let mut connector = connector_clone.borrow_mut();
-            if connector.bind_addr() != value.as_str() {
-                if let Err(error) = connector.set_bind_addr(value.as_str()) {
-                    bind_socket_input_clone.set_value(connector.bind_addr());
-                    drop(connector);
-                    alert(0, 0, error.details.as_str());
-                } else {
-                    println!("Rebind address: {}", value.as_str());
-                }
-                return true;
-            }
-            false
-        }
-        _ => false
-    }));
+    make_input(
+        120,
+        5,
+        200,
+        30,
+        "Bind socket:",
+        connector.clone(),
+        InputType::BindAddress,
+        "Rebind address: ",
+    );
 
-    let mut connection_socket_input = Input::new(120, 45, 200, 30, "Connect socket:");
-    connection_socket_input.set_value(connector.borrow().connect_addr());
-    let connector_clone = connector.clone();
-    let connection_socket_input_clone = connection_socket_input.clone();
-    connection_socket_input.handle(Box::new(move |event| match event {
-        Event::Unfocus => {
-            let value = connection_socket_input_clone.value();
-            let mut connector = connector_clone.borrow_mut();
-            if connector.connect_addr() != value.as_str() {
-                if let Err(error) = connector.set_connect_addr(value.as_str()) {
-                    connection_socket_input_clone.set_value(connector.connect_addr());
-                    drop(connector);
-                    alert(0, 0, error.details.as_str());
-                } else {
-                    println!("Reconnect address: {}", value.as_str());
-                }
-                return true;
-            }
-            false
-        }
-        _ => false
-    }));
+    make_input(
+        120,
+        45,
+        200,
+        30,
+        "Connect socket:",
+        connector.clone(),
+        InputType::ConnectAddress,
+        "Reconnect address: ",
+    );
 
-    let mut table = make_table(n_rows, n_cols);
+    let (mut table, mut input) = make_table(n_rows, n_cols);
 
     let mut rb_send = RadioRoundButton::new(5, 75, 100, 40, "Send");
     rb_send.toggle(true);
@@ -163,6 +123,7 @@ fn main() -> Result<(), Error> {
         }
         _ => false
     }));
+
     let mut rb_recieve = RadioRoundButton::new(5, 115, 100, 40, "Recieve");
     let mut table_clone = table.clone();
     let rb_recieve_clone = rb_recieve.clone();
@@ -181,10 +142,7 @@ fn main() -> Result<(), Error> {
     window.add(&rb_send);
     window.add(&rb_recieve);
 
-    // We need an input widget for table
-    let mut input = Input::new(0, 0, 0, 0, "");
-    input.hide();
-    table.add(&input);
+    
 
     window.show();
 
@@ -300,6 +258,7 @@ fn main() -> Result<(), Error> {
     while fltk_app.wait() {
         if let Some(Message::Redraw) = receiver.recv() {
             let connector = connector.borrow_mut();
+            // println!("{} {}", connector.bind_addr(), connector.connect_addr());
             if rb_send.is_toggled() {
                 match connector.send_data(&data.borrow()) {
                     Ok(n_bytes) => println!("send_data {} bytes", n_bytes),
@@ -315,7 +274,6 @@ fn main() -> Result<(), Error> {
                             println!("receive_data {:?}", data);
                         },
                         Err(error) => {
-                            // end_of_recieve = true;
                             println!("{}", error.details);
                         },
                     }
