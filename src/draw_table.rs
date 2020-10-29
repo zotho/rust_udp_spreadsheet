@@ -3,6 +3,10 @@ use fltk::draw::{
 };
 use fltk::{Align, Color, FrameType};
 
+pub fn get_alpha_upper_char(char_index: i32) -> char {
+    (char_index + 65) as u8 as char
+}
+
 // Needed to store cell information during the draw_cell call
 #[derive(Default)]
 pub struct CellData {
