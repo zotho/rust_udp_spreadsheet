@@ -3,6 +3,28 @@ use fltk::draw::{
 };
 use fltk::{Align, Color, FrameType};
 
+// Needed to store cell information during the draw_cell call
+#[derive(Default)]
+pub struct CellData {
+    pub row: i32,
+    pub col: i32,
+    pub x: i32,
+    pub y: i32,
+    pub w: i32,
+    pub h: i32,
+}
+
+impl CellData {
+    pub fn select(&mut self, row: i32, col: i32, x: i32, y: i32, w: i32, h: i32) {
+        self.row = row;
+        self.col = col;
+        self.x = x;
+        self.y = y;
+        self.w = w;
+        self.h = h;
+    }
+}
+
 pub fn draw_header(txt: &str, x: i32, y: i32, w: i32, h: i32) {
     push_clip(x, y, w, h);
     draw_box(FrameType::ThinUpBox, x, y, w, h, Color::FrameDefault);

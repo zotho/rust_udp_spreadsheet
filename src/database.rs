@@ -1,5 +1,6 @@
-use mysql::prelude::*;
-use mysql::*;
+use mysql;
+use mysql::prelude::Queryable;
+use mysql::{params, Opts, Pool};
 
 type MySqlResult<T> = std::result::Result<T, mysql::Error>;
 

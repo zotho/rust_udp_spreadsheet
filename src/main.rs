@@ -1,7 +1,11 @@
+mod connector;
+mod database;
+mod draw_table;
+mod error;
+mod widgets;
+
 use std::cell::RefCell;
 use std::rc::Rc;
-
-use lazy_static::lazy_static;
 
 use fltk::app;
 use fltk::app::{channel, App, Receiver, Scheme, Sender};
@@ -12,24 +16,13 @@ use fltk::input::Input;
 use fltk::table::TableContext::{Cell, ColHeader, RowHeader, StartPage};
 use fltk::Cursor;
 use fltk::{Event, Font, GroupExt, InputExt, Key, TableExt, WidgetExt, WindowExt};
+use lazy_static::lazy_static;
 
-mod cell_data;
-use cell_data::CellData;
-
-mod draw_table;
-use draw_table::{draw_data, draw_header};
-
-mod widgets;
-use widgets::{make_input, make_table, make_window, InputType, VisibleFlag};
-
-mod database;
-use database::{populate_table, Database, Row};
-
-mod error;
-use error::Error;
-
-mod connector;
 use connector::make_connector;
+use database::{populate_table, Database, Row};
+use draw_table::{draw_data, draw_header, CellData};
+use error::Error;
+use widgets::{make_input, make_table, make_window, InputType, VisibleFlag};
 
 #[derive(Debug, Copy, Clone)]
 pub enum Message {
