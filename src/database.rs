@@ -3,7 +3,7 @@ use mysql::prelude::*;
 
 type MySqlResult<T> = std::result::Result<T, mysql::Error>;
 
-#[derive(Debug, PartialEq, Eq, Clone)]
+#[derive(Default, Debug, PartialEq, Eq, Clone)]
 pub struct Row {
     pub id: i32,
     pub number: i32,
@@ -17,14 +17,26 @@ impl Into<Vec<String>> for &Row {
 }
 
 pub struct Database {
-    _url: String,
+    url: String,
     pool: Pool,
 }
 
 impl Database {
     pub fn new(url: String) -> MySqlResult<Self> {
         let pool = Pool::new(url.clone())?;
-        Ok(Database {_url: url, pool: pool})
+        pool.get_conn()?;
+        Ok(Database {url: url, pool: pool})
+    }
+
+    pub fn url(&self) -> String {
+        self.url.clone()
+    }
+
+    pub fn set_url(&mut self, url: String) -> MySqlResult<()> {
+        let pool = Pool::new(Opts::from_url(&url)?)?;
+        pool.get_conn()?;
+        self.url = url;
+        Ok(())
     }
 
     pub fn create_table(&self) -> MySqlResult<()> {
@@ -52,12 +64,12 @@ impl Database {
     }
 
     pub fn get_rows(&self) -> MySqlResult<Vec<Row>> {
-        let mut connection = self.pool.get_conn()?;
-        
-        connection.query_map(
+        let mut connection = self.pool.get_conn().unwrap();
+
+        Ok(connection.query_map(
             r"SELECT id, number, text FROM simple_table",
             |(id, number, text)| Row {id, number, text}
-        )
+        ).unwrap())
     }
 
     pub fn insert_rows(&self, rows: Vec<Row>) -> MySqlResult<()> {
@@ -70,6 +82,19 @@ impl Database {
                 "number" => row.number,
                 "text" => &row.text,
             })
+        )
+    }
+
+    pub fn insert_row(&self, row: Row) -> MySqlResult<()> {
+        let mut connection = self.pool.get_conn()?;
+
+        connection.exec_drop(
+            r"INSERT INTO simple_table (number, text)
+            VALUES (:number, :text)",
+            params! {
+                "number" => row.number,
+                "text" => &row.text,
+            }
         )
     }
 

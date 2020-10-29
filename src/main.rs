@@ -15,10 +15,11 @@ use fltk::{
 };
 use fltk::app;
 use fltk::app::{App, Scheme, channel, Sender, Receiver};
-use fltk::button::RadioRoundButton;
+use fltk::button::{Button, RadioRoundButton};
 use fltk::Cursor;
 use fltk::draw;
 use fltk::dialog::alert;
+use fltk::input::Input;
 use fltk::table::TableContext::{
     StartPage,
     ColHeader,
@@ -33,10 +34,10 @@ mod draw_table;
 use draw_table::{draw_header, draw_data};
 
 mod widgets;
-use widgets::{make_window, make_table, make_input, InputType};
+use widgets::{make_window, make_table, make_input, InputType, VisibleFlag};
 
 mod database;
-use database::{populate_table, Database};
+use database::{populate_table, Database, Row};
 
 mod error;
 use error::Error;
@@ -47,6 +48,10 @@ use connector::make_connector;
 #[derive(Debug, Copy, Clone)]
 pub enum Message {
     Redraw,
+    SetSend,
+    SetRecieve,
+    AddRow,
+    UpdateTable,
 }
 
 lazy_static! {
@@ -57,21 +62,19 @@ fn get_alpha_upper_char(char_index: i32) -> char {
     (char_index + 65) as u8 as char
 }
 
-
-
 fn main() -> Result<(), Error> {
     let connector = Rc::from(RefCell::from(make_connector()?));
 
-    let db = Database::new("mysql://zotho:zotho@localhost:3306/rust".to_owned()).unwrap();
+    let db = Rc::from(RefCell::from(Database::new("mysql://zotho:zotho@localhost:3306/rust".to_owned())?));
 
     // If we need populate table
     if let Some(populate_flag) = std::env::args().nth(1) {
         if populate_flag == "--populate" {
-            populate_table(&db);
+            populate_table(&db.borrow());
         }
     }
 
-    let raw_data: Vec<Vec<String>> = db.get_rows().unwrap().iter()
+    let raw_data: Vec<Vec<String>> = db.borrow().get_rows().unwrap().iter()
         .map(|row| row.into()).collect();
     let n_rows = raw_data.len();
     let n_cols = raw_data.first().unwrap_or(&Vec::new()).len();
@@ -79,13 +82,57 @@ fn main() -> Result<(), Error> {
     let data: Rc<RefCell<Vec<Vec<String>>>> = Rc::from(RefCell::from(raw_data));
     let cell = Rc::from(RefCell::from(CellData::default()));
 
+    let sender = CHANNEL.0;
+    let receiver = CHANNEL.1;
+    
     let fltk_app = App::default().with_scheme(Scheme::Gtk);
 
-    let mut window = make_window();
+    let mut window = make_window(100, 100, 410, 640, "Spreadsheet");
+
+    let mut db_input = Input::new(35, 5, 370, 30, "DB:");
+    db_input.set_value(&db.borrow().url().clone());
+
+    let db_clone = db.clone();
+    let data_clone = data.clone();
+    let db_input_clone = db_input.clone();
+
+    db_input.handle(Box::new(move |event| match event {
+        Event::Unfocus => {
+            let value = db_input_clone.value();
+            let mut db = db_clone.borrow_mut();
+            let initial_url = db.url();
+            if initial_url != value {
+                if let Err(error) = db.set_url(value) {
+                    db_input_clone.set_value(&initial_url);
+                    drop(db);
+                    alert(0, 0, &error.to_string())
+                } else {
+                    match db.get_rows() {
+                        Ok(rows) => {
+                            println!("ROWS {:?}", rows);
+                            let mut data = data_clone.borrow_mut();
+                            data.clear();
+                            let raw_data: Vec<Vec<String>> = rows.iter().map(|row| row.into()).collect();
+                            data.extend(raw_data);
+                            sender.send(Message::UpdateTable);
+                        }
+                        Err(error) => {
+                            db_input_clone.set_value(&initial_url);
+                            drop(db);
+                            alert(0, 0, &error.to_string())
+                        }
+                    }
+                    
+                }
+            }
+            false
+        }
+        _ => false
+    }));
 
     make_input(
-        120,
-        5,
+        125,
+        45,
         200,
         30,
         "Bind socket:",
@@ -95,8 +142,8 @@ fn main() -> Result<(), Error> {
     );
 
     make_input(
-        120,
-        45,
+        125,
+        85,
         200,
         30,
         "Connect socket:",
@@ -105,51 +152,27 @@ fn main() -> Result<(), Error> {
         "Reconnect address: ",
     );
 
-    let (mut table, mut input) = make_table(n_rows, n_cols);
-
-    let mut rb_send = RadioRoundButton::new(5, 75, 100, 40, "Send");
+    let mut rb_send = RadioRoundButton::new(5, 115, 100, 30, "Send");
     rb_send.toggle(true);
+    rb_send.set_callback(Box::new(move || sender.send(Message::SetSend)));
 
-    let mut table_clone = table.clone();
-    let rb_send_clone = rb_send.clone();
-    rb_send.handle(Box::new(move |event| match event {
-        Event::Push | Event::Shortcut | Event::Focus => {
-            if rb_send_clone.is_toggled() {
-                table_clone.activate();
-            } else {
-                table_clone.deactivate();
-            }
-            false
-        }
-        _ => false
-    }));
+    let mut rb_recieve = RadioRoundButton::new(5, 145, 100, 30, "Recieve");
+    rb_recieve.set_callback(Box::new(move || sender.send(Message::SetRecieve)));
 
-    let mut rb_recieve = RadioRoundButton::new(5, 115, 100, 40, "Recieve");
-    let mut table_clone = table.clone();
-    let rb_recieve_clone = rb_recieve.clone();
-    rb_recieve.handle(Box::new(move |event| match event {
-        Event::Push | Event::Shortcut | Event::Focus => {
-            if !rb_recieve_clone.is_toggled() {
-                table_clone.activate();
-            } else {
-                table_clone.deactivate();
-            }
-            false
-        }
-        _ => false
-    }));
+    let (mut table, input) = make_table(5, 205, 400, 400, "Data", n_rows, n_cols);
+    let input_visible = Rc::from(RefCell::from(VisibleFlag {visible: false}));
 
-    window.add(&rb_send);
-    window.add(&rb_recieve);
+    let mut button = Button::new(5, 610, 400, 25, "Add row");
+    button.set_callback(Box::new(move || sender.send(Message::AddRow)));
 
-    
+    window.add(&button);
 
     window.show();
 
     let table_clone = table.clone();
     let cell_clone = cell.clone();
     let data_clone = data.clone();
-    let mut input_clone = input.clone();
+    let input_visible_clone = input_visible.clone();
 
     // Called when the table is drawn then when it's redrawn due to events
     table.draw_cell(Box::new(move |ctx, row, col, x, y, w, h| match ctx {
@@ -162,7 +185,7 @@ fn main() -> Result<(), Error> {
                 cell_clone
                     .borrow_mut()
                     .select(row, col, x, y, w, h); // Captures the cell information
-                if input_clone.visible() {
+                if input_visible_clone.borrow().visible {
                     return; // Don't redraw cell if input is visible
                 }
             }
@@ -173,13 +196,15 @@ fn main() -> Result<(), Error> {
         _ => (),
     }));
 
-    
+
     let connector_clone = connector.clone();
+    let db_clone = db.clone();
     let cell_clone = cell.clone();
     let data_clone = data.clone();
     let mut table_clone = table.clone();
     let mut window_clone = window.clone();
     let mut input_clone = input.clone();
+    let input_visible_clone = input_visible.clone();
 
     // Handle double clicks
     // Handle Enter: store the data into the cell or start writing
@@ -194,15 +219,17 @@ fn main() -> Result<(), Error> {
                     let (row, col) = (cell.row as usize, cell.col as usize);
                     input_clone.set_value(&data[row][col]);
                     input_clone.show();
+                    input_visible_clone.borrow_mut().visible = true;
                     return true;
                 }
                 false
             }
             Event::KeyDown if app::event_key() == Key::Enter => {
+                let db = db_clone.borrow();
                 let cell = cell.borrow();
                 let (row, col) = (cell.row as usize, cell.col as usize);
-                if input.visible() {
-                    let value = input.value();
+                if input_visible_clone.borrow().visible {
+                    let value = input_clone.value();
                     let value_clone = value.clone();
 
                     let db_row = row + 1;
@@ -228,22 +255,24 @@ fn main() -> Result<(), Error> {
                         let mut data = data_clone.borrow_mut();
                         data[row][col] = value_clone;
                         match connector_clone.borrow().send_data(data.as_ref()) {
-                            Ok(n_bytes) => println!("send_data {} bytes", n_bytes),
-                            Err(error) => println!("{}", error.details),
+                            Ok(n_bytes) => println!("Send {} bytes", n_bytes),
+                            Err(error) => println!("Send error: {}", error.details),
                         };
                     }
 
-                    input.resize(cell.x, cell.y, cell.w, cell.h);
-                    input.set_value("");
-                    input.hide();
+                    input_clone.resize(cell.x, cell.y, cell.w, cell.h);
+                    input_clone.set_value("");
+                    input_clone.hide();
+                    input_visible_clone.borrow_mut().visible = false;
 
                     window_clone.set_cursor(Cursor::Default); // If we don't do this, cursor can disappear!
 
                     table_clone.redraw();
                 } else {
-                    input.resize(cell.x, cell.y, cell.w, cell.h);
-                    input.set_value(&data_clone.borrow()[row][col]);
-                    input.show();
+                    input_clone.resize(cell.x, cell.y, cell.w, cell.h);
+                    input_clone.set_value(&data_clone.borrow()[row][col]);
+                    input_clone.show();
+                    input_visible_clone.borrow_mut().visible = true;
                 }
                 return true;
             }
@@ -251,37 +280,57 @@ fn main() -> Result<(), Error> {
         }
     }));
 
-    app::add_timeout(1.0, callback);
+    app::add_timeout(1.0, Box::new(callback));
 
-    let receiver = CHANNEL.1;
-
-    while fltk_app.wait() {
-        if let Some(Message::Redraw) = receiver.recv() {
-            let connector = connector.borrow_mut();
-            // println!("{} {}", connector.bind_addr(), connector.connect_addr());
-            if rb_send.is_toggled() {
-                match connector.send_data(&data.borrow()) {
-                    Ok(n_bytes) => println!("send_data {} bytes", n_bytes),
-                    Err(error) => println!("{}", error.details),
-                };
-            } else if rb_recieve.is_toggled() {
-                for _ in 0..2 {
-                    match connector.receive_data() {
-                        Ok(incoming_data) => {
-                            let mut data = data.borrow_mut();
-                            data.clear();
-                            data.extend(incoming_data);
-                            println!("receive_data {:?}", data);
-                        },
-                        Err(error) => {
-                            println!("{}", error.details);
-                        },
+    while fltk_app.wait().unwrap() {
+        match receiver.recv() {
+            Some(Message::Redraw) => {
+                let connector = connector.borrow_mut();
+                // println!("{} {}", connector.bind_addr(), connector.connect_addr());
+                if rb_send.is_toggled() {
+                    match connector.send_data(&data.borrow()) {
+                        Ok(n_bytes) => println!("Send {} bytes", n_bytes),
+                        Err(error) => println!("Send error: {}", error.details),
+                    };
+                } else if rb_recieve.is_toggled() {
+                    for _ in 0..2 {
+                        match connector.receive_data() {
+                            Ok(incoming_data) => {
+                                let mut data = data.borrow_mut();
+                                data.clear();
+                                data.extend(incoming_data);
+                                table.set_rows(data.len() as u32);
+                                println!("Receive {:?}", data);
+                            },
+                            Err(error) => {
+                                println!("Receive error: {}", error.details);
+                            },
+                        }
                     }
-                }
-            } else {
-                unreachable!();
-            };
-            
+                } else {
+                    unreachable!();
+                };
+            }
+            Some(Message::SetSend) => {
+                table.activate();
+                button.activate();
+                db_input.activate();
+            }
+            Some(Message::SetRecieve) => {
+                table.deactivate();
+                button.deactivate();
+                db_input.deactivate();
+            }
+            Some(Message::AddRow) => {
+                let mut data = data.borrow_mut();
+                data.push(vec!["0".to_owned(), "".to_owned()]);
+                table.set_rows(data.len() as u32);
+                db.borrow().insert_row(Row::default()).unwrap();
+            }
+            Some(Message::UpdateTable) => {
+                table.set_rows(data.borrow().len() as u32);
+            }
+            None => ()
         }
     }
 

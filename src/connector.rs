@@ -55,7 +55,7 @@ impl Connector {
 
         match self.socket.recv_from(&mut recv_buff) {
             Ok((n, addr)) => {
-                println!("{} bytes buffer from {:?}", n, addr);
+                println!("Receive {} bytes from {:?}", n, addr);
 
                 let recieved_bytes = &mut recv_buff[..n];
                 

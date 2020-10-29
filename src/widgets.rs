@@ -11,18 +11,22 @@ use fltk::{
     WindowExt,
 };
 use fltk::app;
-
-use fltk::window::DoubleWindow;
-use fltk::table::Table;
 use fltk::dialog::alert;
 use fltk::input::Input;
+use fltk::table::Table;
+use fltk::window::DoubleWindow;
 
 use crate::connector::{Connector, MyConnectorResult};
 
-pub fn make_window() -> DoubleWindow {
-    let mut window = DoubleWindow::new(100, 100, 410, 600, "Spreadsheet")
+pub fn make_window(
+    x: i32,
+    y: i32,
+    w: i32,
+    h: i32,
+    title: &str,
+) -> DoubleWindow {
+    let mut window = DoubleWindow::new(x, y, w, h, title)
         .center_screen();
-    window.make_resizable(true);
     window.set_callback(Box::new(|| {
         let event = app::event();
         let close = event == Event::Close;
@@ -35,8 +39,20 @@ pub fn make_window() -> DoubleWindow {
     window
 }
 
-pub fn make_table(n_rows: usize, n_cols: usize) -> (Table, Input) {
-    let mut table = Table::new(5, 175, 400, 400, "Data");
+pub struct VisibleFlag {
+    pub visible: bool
+}
+
+pub fn make_table(
+    x: i32,
+    y: i32,
+    w: i32,
+    h: i32,
+    title: &str,
+    n_rows: usize,
+    n_cols: usize,
+) -> (Table, Input) {
+    let mut table = Table::new(x, y, w, h, title);
 
     table.set_rows(n_rows as u32);
     table.set_row_header(true);
@@ -45,7 +61,7 @@ pub fn make_table(n_rows: usize, n_cols: usize) -> (Table, Input) {
 
     table.set_cols(n_cols as u32);
     table.set_col_header(true);
-    table.set_col_width_all(175);
+    table.set_col_width_all(170);
     table.set_col_resize(true);
 
     table.set_selection(0, 0, 0, 0);
@@ -92,7 +108,7 @@ pub fn make_input(
 
     let mut input = Input::new(x, y, w, h, title);
     let connector_clone = connector.clone();
-    input.set_value(dbg!(get_addr(&connector_clone, input_type).as_str()));
+    input.set_value(get_addr(&connector_clone, input_type).as_str());
 
     let input_clone = input.clone();
     input.handle(Box::new(move |event| match event {
